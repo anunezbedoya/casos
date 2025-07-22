@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from services.clasificador_service import clasificar_archivo
+from clasificador.services.clasificador_service import clasificar_archivo
 
 clasificador_bp = Blueprint('clasificador', __name__)
 

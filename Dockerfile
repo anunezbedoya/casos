@@ -17,4 +17,4 @@ RUN pip install --no-cache-dir -r requirements.txt
 EXPOSE 8080
 
 # Comando para ejecutar la app usando Gunicorn
-CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:$PORT clasificador.app:app"]
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:8080 clasificador.app:app"]

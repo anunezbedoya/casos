@@ -1,6 +1,9 @@
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from flask import Flask
-from controllers.clasificador_controller import clasificador_bp
-import os  
+from clasificador.controllers.clasificador_controller import clasificador_bp
 app = Flask(__name__)
 app.register_blueprint(clasificador_bp, url_prefix='/clasificar')
 
