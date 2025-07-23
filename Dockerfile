@@ -4,11 +4,13 @@ FROM python:3.11-slim
 # Establece el directorio de trabajo dentro del contenedor
 WORKDIR /app
 
+ENV PYTHONPATH=/app
+
 # Copia todo el contenido del contexto al contenedor
 COPY . /app
 
 # Muestra el contenido para depuración (opcional, puedes quitarlo luego)
-RUN echo "Contenido de /app:" && ls -l /app
+RUN echo "Contenido1 de /app:" && ls -l /app
 
 # Instala las dependencias del proyecto
 RUN pip install --no-cache-dir -r requirements.txt
