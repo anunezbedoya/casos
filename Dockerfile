@@ -1,6 +1,12 @@
 # Usa una imagen ligera de Python 3.11
 FROM python:3.11-slim
 
+
+# Instalar dependencias del sistema necesarias para pdf2image y pytesseract
+
+RUN apt-get update && \
+    apt-get install -y tesseract-ocr tesseract-ocr-spa libtesseract-dev poppler-utils && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 # Establece el directorio de trabajo dentro del contenedor
 WORKDIR /app
 

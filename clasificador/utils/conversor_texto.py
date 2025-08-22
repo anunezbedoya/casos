@@ -5,14 +5,32 @@ import pytesseract
 from PIL import Image
 import io
 
+from pdf2image import convert_from_bytes
+
+
 def extraer_texto_pdf(file_bytes):
-    """Extrae texto de un archivo PDF dado como bytes."""
-    stream = io.BytesIO(file_bytes)
-    reader = PdfReader(stream)
-    texto = ""
-    for page in reader.pages:
-        texto += page.extract_text() or ""
-    return texto.strip()
+    # Intentar extracción por texto (PDF no escaneado)
+    try:
+        from PyPDF2 import PdfReader
+        reader = PdfReader(io.BytesIO(file_bytes))
+        texto = "".join([page.extract_text() or "" for page in reader.pages])
+        return texto
+    except Exception as e:
+        return ""
+
+def extraer_texto_pdf_ocr(file_bytes):
+    # OCR de PDF escaneado
+    pages = convert_from_bytes(file_bytes)
+    texto_total = ""
+    for page in pages:
+        texto_total += pytesseract.image_to_string(page, lang="spa")
+    return texto_total
+
+
+
+def extraer_texto_imagen(file_bytes):
+    image = Image.open(io.BytesIO(file_bytes))
+    return pytesseract.image_to_string(image, lang="spa")
 
 def extraer_texto_word(file_bytes):
     """Extrae texto de un archivo Word (.docx) dado como bytes."""
@@ -30,8 +48,3 @@ def extraer_texto_excel(file_bytes):
         return contenido
     except Exception as e:
         return f"Error leyendo Excel: {e}"
-
-def extraer_texto_imagen(file_bytes):
-    """Extrae texto de una imagen (JPG, PNG) usando OCR."""
-    image = Image.open(io.BytesIO(file_bytes))
-    return pytesseract.image_to_string(image)

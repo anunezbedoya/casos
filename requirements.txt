@@ -7,3 +7,4 @@ pillow
 pandas
 openpyxl
 requests
+pdf2image
