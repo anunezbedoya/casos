@@ -39,7 +39,7 @@ def clasificar_archivo(archivo) -> str:
         if not texto.strip():
             return "No se pudo extraer texto del archivo."
 
-        return generar_prompt(texto)
+        return texto
 
     except Exception as e:
         return f"Error procesando el archivo: {str(e)}"

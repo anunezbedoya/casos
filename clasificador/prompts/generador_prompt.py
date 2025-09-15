@@ -9,92 +9,46 @@ def generar_prompt(texto):
     if not GEMINI_API_KEY:
         return {"error": "API key no configurada"}
 
-    prompt = f"""ROL: Experto en documentos públicos.
+    prompt = f"""Eres un experto en derecho colombiano y en análisis de documentos judiciales.  
+Tu única tarea es identificar y clasificar demandas en Colombia.  
 
-CONTEXTO: Eres un especialista con amplio conocimiento en todos los tipos de documentos que se utilizan en el ámbito gubernamental y empresarial de Colombia, tales como facturas, contratos, documentos de identidad, certificados, resoluciones, derechos de petición, PQRS, entre otros.
+INSTRUCCIONES IMPORTANTES:  
+- Responde únicamente con un JSON válido.  
+- No repitas el rol, el contexto, ni la tarea.  
+- No incluyas explicaciones, ni texto adicional fuera del JSON.  
+- Escapa todas las comillas dobles internas como \\".  
 
-TAREA: Analiza el siguiente contenido en texto plano y responde con precisión qué tipo de documento es. Tu respuesta debe limitarse únicamente al tipo documental (por ejemplo: "factura", "contrato", "PQRS", "resolución", etc.). Además, extrae los campos clave que justifiquen esa clasificación, entregándolos como un arreglo de pares clave-valor.
-
-Si identificas que el tipo de documento corresponde a alguno de los siguientes (factura, contrato o documento de identidad), asegúrate de extraer los datos clave correspondientes únicamente a ese tipo, con base en los campos definidos más abajo. Si no es posible extraer todos, incluye los que estén disponibles.
+TAREA:  
+1. Determina si el documento es una DEMANDA u otro escrito judicial.  
+2. Si es demanda, identifica y clasifica el **tipo de demanda** (ejemplo: "demanda laboral", "demanda civil de pertenencia", "demanda ejecutiva", "demanda penal", "demanda de nulidad", "acción de tutela", "demanda administrativa", etc.).  
+3. Extrae los campos clave que justifiquen la clasificación.  
 
 ENTRADA:
 <<<
 {texto[:3000]}
 >>>
 
-SALIDA ESPERADA:
-- Formato JSON válido (sin ``` ni lenguaje).
-- Escapa todas las comillas dobles internas como \\".
-- No incluyas texto adicional fuera del JSON.
-
-CAMPOS CLAVE POR TIPO DOCUMENTAL:
-
-FACTURA:
-- Número de factura
-- Fecha de emisión
-- Fecha de vencimiento
-- Nombre del proveedor
-- NIT del proveedor
-- Dirección del proveedor
-- Nombre del cliente
-- NIT del cliente
-- Dirección del cliente
-- Concepto o descripción del servicio/producto
-- Cantidad
-- Valor unitario
-- Subtotal
-- IVA
-- Descuentos
-- Total a pagar
-- Forma de pago
-- Estado de pago (pagada, pendiente, vencida)
-
-CONTRATO LABORAL:
-- Tipo de contrato
-- Empleador
-- Valor mensual
-- Fecha inicio
-- Objeto del contrato
-- Nombre empleado o contratista
-- Persona jurídica o natural
-- Valor del contrato
-- Tipo de persona (Natural-Jurídica)
-- Tipo de documento (NIT, Pasaporte, Cédula)
-- Número de identificación o NIT
-- Dígito de verificación (si es jurídica)
-- Razón social (si es jurídica)
-- Primer nombre
-- Segundo nombre
-- Primer apellido
-- Segundo apellido
-- Correo
-- Teléfono
-- Dirección
-- País
-- Departamento
-- Ciudad
-- Número de contrato
-- Valor base del contrato
-- IVA (si aplica)
-- Impuesto de consumo (si aplica)
-
-DOCUMENTO DE IDENTIDAD:
-- Tipo de documento
-- Número de documento
-- Nombres
-- Apellidos
-- Fecha de nacimiento
-- Lugar de nacimiento
-- Nacionalidad
-- Sexo
-- Rh o grupo sanguíneo
-- Fecha de expedición
-- Lugar de expedición
-- Entidad emisora
-- Código MRZ (si aplica)
-- Estado del documento (vigente, vencido, cancelado)
+SALIDA (solo JSON válido):
+{{
+  "tipo_documento": "",
+  "clasificacion": "",
+  "tipo_demanda": "",
+  "campos": {{
+    "tipo_proceso": "",
+    "partes_involucradas": "",
+    "pretensiones": "",
+    "hechos_relevantes": "",
+    "normas_citadas": "",
+    "juzgado_o_autoridad": "",
+    "fecha_radicacion": "",
+    "numero_radicado": "",
+    "apoderados": "",
+    "ciudad": ""
+  }}
+}}
 """
 
+    # ✅ Aquí ya no retornamos, sino que llamamos al endpoint
     response = requests.post(
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
         params={"key": GEMINI_API_KEY},
@@ -105,7 +59,7 @@ DOCUMENTO DE IDENTIDAD:
         return {"error": response.text}
 
     result = response.json()
-    text_result = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", result)
+    text_result = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
 
     # Limpieza del texto antes de parsear
     text_result = re.sub(r"```json|```", "", str(text_result)).strip()
@@ -122,7 +76,7 @@ DOCUMENTO DE IDENTIDAD:
                     contenido_unido.update(item)
             json_result["contenido"] = contenido_unido
 
-        # 🔹 Limpieza final de barras invertidas sobrantes al final
+        # 🔹 Limpieza final de barras invertidas sobrantes
         def limpiar_valores(data):
             if isinstance(data, dict):
                 return {k: limpiar_valores(v) for k, v in data.items()}
@@ -133,7 +87,6 @@ DOCUMENTO DE IDENTIDAD:
             return data
 
         json_result = limpiar_valores(json_result)
-
         return json_result
 
     except Exception as e:
