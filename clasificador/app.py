@@ -8,6 +8,10 @@ from clasificador.controllers.clasificador_controller import clasificador_bp
 #sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 app = Flask(__name__)
+<<<<<<< HEAD
+=======
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100 MB
+>>>>>>> 54c54579 (Mejoras del prompt y tratamiento de archivos)
 app.register_blueprint(clasificador_bp, url_prefix='/clasificar')
 
 

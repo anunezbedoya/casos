@@ -5,6 +5,7 @@ import re
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+<<<<<<< HEAD
 def generar_prompt(texto):
     if not GEMINI_API_KEY:
         return {"error": "API key no configurada"}
@@ -29,6 +30,147 @@ ENTRADA:
 >>>
 
 SALIDA (solo JSON válido):
+=======
+
+#Prompt que resume cada documento para alimentar el prompt final
+
+def resumen_parcial_prompt(nombre_doc: str, texto: str) -> str:
+    if not GEMINI_API_KEY:
+        return {"error": "API key no configurada"}
+
+    return f"""
+Eres un asistente jurídico colombiano. Resume brevemente el siguiente documento judicial
+sin perder la información jurídica esencial.  
+
+ENTRADA:
+<documento nombre="{nombre_doc}">
+{texto[:20000]}  # límite seguro para Gemini (~15-20k tokens)
+</documento>
+
+Tu salida debe ser un JSON con esta estructura exacta:
+
+{{
+  "documento": "{nombre_doc}",
+  "tipo_documento": "",
+  "resumen": "",
+  "indicadores_clave": {{
+    "partes": "",
+    "pretensiones": "",
+    "hechos": "",
+    "fundamentos": "",
+    "autoridad": ""
+  }}
+}}
+
+Reglas:
+- No inventes información.
+- Resume en máximo 5 oraciones por campo.
+- Si no se identifica algo, escribe "No se menciona en el texto.".
+- Devuelve solo JSON.
+"""
+
+def procesar_documento(nombre: str, texto: str):
+    prompt = resumen_parcial_prompt(nombre, texto)
+
+    response = requests.post(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        params={"key": GEMINI_API_KEY},
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig":{
+            "temperature":0.2,       # Controla la “creatividad” (0 = literal, 1 = más libre)
+            "max_output_tokens":2048
+            }
+        },
+    )
+    try:
+        result = response.json()
+        text_result = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+        text_result = re.sub(r"```json|```", "", text_result).strip()
+        return json.loads(text_result)
+    except Exception as e:
+        print(f"⚠️ Error procesando {nombre}: {e}")
+        return {"documento": nombre, "error": "No se pudo generar resumen"}
+    
+def generar_resumenes(documentos: dict):
+    """
+    documentos: dict con {nombre_archivo: texto_extraido}
+    """
+    resultados = []
+    for nombre, texto in documentos.items():
+        print(f"🧾 Resumiendo documento: {nombre}")
+        resumen = procesar_documento(nombre, texto)
+        resultados.append(resumen)
+    return resultados
+
+#Definimos el prompt final (respuesta completa)
+
+def generar_prompt(resumenes_json):
+    if not GEMINI_API_KEY:
+        return {"error": "API key no configurada"}
+
+    # 🔹 Convertir los resúmenes a formato legible con delimitadores semánticos
+    documentos_texto = ""
+    for r in resumenes_json:
+        nombre = r.get("documento", "Sin nombre")
+        tipo = r.get("tipo_documento", "Desconocido")
+        resumen = r.get("resumen", "")
+        ind = r.get("indicadores_clave", {})
+
+        documentos_texto += f"""
+    <documento nombre="{nombre}">
+    Tipo: {tipo}
+    Resumen: {resumen}
+    Indicadores clave:
+    - Partes: {ind.get('partes', 'No se menciona.')}
+    - Pretensiones: {ind.get('pretensiones', 'No se menciona.')}
+    - Hechos: {ind.get('hechos', 'No se menciona.')}
+    - Fundamentos: {ind.get('fundamentos', 'No se menciona.')}
+    - Autoridad: {ind.get('autoridad', 'No se menciona.')}
+    </documento>
+    """
+
+
+    prompt = f"""
+Eres un experto en derecho colombiano y en análisis de documentos judiciales.
+Tu tarea es analizar uno o varios documentos que pertenecen a un mismo proceso judicial
+y devolver la información estructurada de acuerdo con los campos definidos.
+
+INSTRUCCIONES ESTRICTAS:
+- Responde únicamente con un JSON válido, sin texto adicional ni explicaciones.
+- No repitas el rol ni el contexto.
+- No uses comentarios ni texto fuera del JSON.
+- Escapa todas las comillas dobles internas con \\".
+- Si un campo no aparece en el texto, escribe "No se menciona en el texto.".
+- No inventes información ni completes datos implícitos.
+- Utiliza redacción formal, precisa y concisa, en español jurídico colombiano.
+
+ANÁLISIS DOCUMENTAL:
+- Algunos documentos pueden corresponder a escritos de demanda, autos admisorios, contestaciones, tutelas o providencias.
+- El documento que contenga expresiones como "Acción de Tutela", "Demanda", "Pretensiones", "Hechos" o "Solicitud" debe considerarse el documento principal del proceso.
+- Los documentos con expresiones como "Auto", "Admite", "Providencia", "Juzgado", "Fallo" o "Resolución" deben considerarse documentos complementarios.
+- Usa la información del documento principal para extraer las pretensiones, hechos, partes y tipo de proceso.
+- Usa los documentos complementarios solo para completar datos procesales como juzgado, ciudad, número y fecha de radicación.
+- Todos los documentos pertenecen al mismo proceso judicial.
+
+OBJETIVO:
+1. Determina el tipo de documento principal (por ejemplo: Demanda, Auto, Tutela, Providencia, Contestación, etc.).
+2. Si se trata de una demanda, identifica la clasificación (civil, laboral, administrativa, penal, constitucional, etc.).
+3. Determina el tipo de demanda (por ejemplo: contractual, de nulidad, ejecutiva, de reparación directa, acción de tutela, etc.).
+4. Extrae y consolida la información correspondiente a los siguientes campos, sin duplicados ni repeticiones.
+
+EJEMPLOS DE INDICADORES SEMÁNTICOS (para inferir secciones):
+- "El demandante es..." o "La parte demandante..." → sección PARTES
+- "Pretende que se declare..." o "Solicita..." → sección PRETENSIONES
+- "Los hechos son..." o "Hechos relevantes..." → sección HECHOS
+- "Con fundamento en..." o "De conformidad con..." → sección FUNDAMENTOS DE DERECHO
+- "Por lo anterior..." o "En mérito de lo expuesto..." → cierre del documento
+- "Radicado No." o "Expediente No." → número de radicado
+- "Juzgado" o "Tribunal" → juzgado o autoridad judicial
+- "En la ciudad de..." o "Bogotá D.C." → ciudad de radicación
+
+SALIDA (formato exacto, solo JSON):
+>>>>>>> 54c54579 (Mejoras del prompt y tratamiento de archivos)
 {{
   "tipo_documento": "",
   "clasificacion": "",
@@ -46,13 +188,43 @@ SALIDA (solo JSON válido):
     "ciudad": ""
   }}
 }}
+<<<<<<< HEAD
+=======
+
+REGLAS DE CONSISTENCIA:
+- Si hay varios documentos, analiza todo el contenido como un solo proceso.
+- Si hay contradicciones, prioriza el documento que contenga la demanda o tutela principal.
+- Si un dato aparece en un documento complementario y no en el principal, inclúyelo.
+- Mantén los nombres de los campos exactamente como en el formato JSON.
+- Todos los valores deben ser texto plano, sin listas ni saltos de línea innecesarios.
+- No incluyas texto fuera del JSON.
+
+--- DOCUMENTOS A ANALIZAR ---
+Cada documento está delimitado así:
+<documento nombre="...">
+[contenido]
+</documento>
+
+CONTENIDO:
+{documentos_texto}
+>>>>>>> 54c54579 (Mejoras del prompt y tratamiento de archivos)
 """
 
     # ✅ Aquí ya no retornamos, sino que llamamos al endpoint
     response = requests.post(
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
         params={"key": GEMINI_API_KEY},
+<<<<<<< HEAD
         json={"contents": [{"parts": [{"text": prompt}]}]},
+=======
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig":{
+            "temperature":0.2,       # Controla la “creatividad” (0 = literal, 1 = más libre)
+            "max_output_tokens":8192
+            }
+        },
+>>>>>>> 54c54579 (Mejoras del prompt y tratamiento de archivos)
     )
 
     if response.status_code != 200:
