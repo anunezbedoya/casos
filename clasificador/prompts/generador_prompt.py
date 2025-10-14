@@ -5,32 +5,6 @@ import re
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-<<<<<<< HEAD
-def generar_prompt(texto):
-    if not GEMINI_API_KEY:
-        return {"error": "API key no configurada"}
-
-    prompt = f"""Eres un experto en derecho colombiano y en análisis de documentos judiciales.  
-Tu única tarea es identificar y clasificar demandas en Colombia.  
-
-INSTRUCCIONES IMPORTANTES:  
-- Responde únicamente con un JSON válido.  
-- No repitas el rol, el contexto, ni la tarea.  
-- No incluyas explicaciones, ni texto adicional fuera del JSON.  
-- Escapa todas las comillas dobles internas como \\".  
-
-TAREA:  
-1. Determina si el documento es una DEMANDA u otro escrito judicial.  
-2. Si es demanda, identifica y clasifica el **tipo de demanda** (ejemplo: "demanda laboral", "demanda civil de pertenencia", "demanda ejecutiva", "demanda penal", "demanda de nulidad", "acción de tutela", "demanda administrativa", etc.).  
-3. Extrae los campos clave que justifiquen la clasificación.  
-
-ENTRADA:
-<<<
-{texto[:3000]}
->>>
-
-SALIDA (solo JSON válido):
-=======
 
 #Prompt que resume cada documento para alimentar el prompt final
 
@@ -170,7 +144,6 @@ EJEMPLOS DE INDICADORES SEMÁNTICOS (para inferir secciones):
 - "En la ciudad de..." o "Bogotá D.C." → ciudad de radicación
 
 SALIDA (formato exacto, solo JSON):
->>>>>>> 54c54579 (Mejoras del prompt y tratamiento de archivos)
 {{
   "tipo_documento": "",
   "clasificacion": "",
@@ -188,8 +161,6 @@ SALIDA (formato exacto, solo JSON):
     "ciudad": ""
   }}
 }}
-<<<<<<< HEAD
-=======
 
 REGLAS DE CONSISTENCIA:
 - Si hay varios documentos, analiza todo el contenido como un solo proceso.
@@ -207,16 +178,12 @@ Cada documento está delimitado así:
 
 CONTENIDO:
 {documentos_texto}
->>>>>>> 54c54579 (Mejoras del prompt y tratamiento de archivos)
 """
 
     # ✅ Aquí ya no retornamos, sino que llamamos al endpoint
     response = requests.post(
         "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
         params={"key": GEMINI_API_KEY},
-<<<<<<< HEAD
-        json={"contents": [{"parts": [{"text": prompt}]}]},
-=======
         json={
             "contents": [{"parts": [{"text": prompt}]}],
             "generationConfig":{
@@ -224,7 +191,6 @@ CONTENIDO:
             "max_output_tokens":8192
             }
         },
->>>>>>> 54c54579 (Mejoras del prompt y tratamiento de archivos)
     )
 
     if response.status_code != 200:

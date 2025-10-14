@@ -1,10 +1,6 @@
 from flask import Blueprint, request, jsonify
 from clasificador.services.clasificador_service import clasificar_archivo
-<<<<<<< HEAD
-from clasificador.prompts.generador_prompt import generar_prompt
-=======
 from clasificador.prompts.generador_prompt import generar_prompt, generar_resumenes
->>>>>>> 54c54579 (Mejoras del prompt y tratamiento de archivos)
 
 import requests
 
@@ -15,11 +11,7 @@ def clasificar():
     # 🔹 Recibir múltiples archivos
     archivos = request.files.getlist('archivos')
     url_cliente = request.form.get('url') or (request.json.get('url') if request.is_json else None)
-<<<<<<< HEAD
-    textos_concatenados = ""   # 👈 inicializamos
-=======
-    texto_extraido = ""   # 👈 inicializamos
->>>>>>> 54c54579 (Mejoras del prompt y tratamiento de archivos)
+
 
     funcion = 'clasificar'
     notificar_dispersion(url_cliente, funcion)
@@ -30,19 +22,6 @@ def clasificar():
     if not url_cliente:
         return jsonify({'error': 'URL del cliente no recibida'}), 400
 
-<<<<<<< HEAD
-    resultados = []
-    for archivo in archivos:
-        resultado = clasificar_archivo(archivo)
-        textos_concatenados += f"\n\n{resultado}\n"
-
-        resultados.append({
-            "nombre_archivo": archivo.filename,
-            "resultado": resultado
-        })
-
-    return generar_prompt(textos_concatenados)
-=======
     documentos = {}     
     for archivo in archivos:
         texto_extraido = clasificar_archivo(archivo)
@@ -64,7 +43,6 @@ def clasificar():
         resultado_final = generar_prompt(resumenes)
 
     return jsonify(resultado_final)
->>>>>>> 54c54579 (Mejoras del prompt y tratamiento de archivos)
 
 def notificar_dispersion(url_cliente, funcion):
     data = {
