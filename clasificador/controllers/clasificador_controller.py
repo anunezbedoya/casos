@@ -34,11 +34,12 @@ def clasificar():
 
         #Extraccion del texto
 
-        #Sanitizar nombres de archivos
-        nombre_archivo = secure_filename(archivo.filename)
-
         documentos = {}     
         for archivo in archivos:
+
+            #Sanitizar nombres de archivos
+            nombre_archivo = secure_filename(archivo.filename)    
+
             try:
                 texto_extraido = clasificar_archivo(archivo)
                 if not archivo_permitido(archivo.filename, archivo.mimetype):
