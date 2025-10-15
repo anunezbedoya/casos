@@ -1,12 +1,15 @@
 from flask import Blueprint, request, jsonify
-from clasificador.services.clasificador_service import clasificar_archivo
+from clasificador.services.clasificador_service import clasificar_archivo, archivo_permitido
 from clasificador.prompts.generador_prompt import generar_prompt, generar_resumenes
+from werkzeug.utils import secure_filename
 import traceback
 import logging
 import requests
 
 clasificador_bp = Blueprint('clasificador', __name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
 @clasificador_bp.route('/', methods=['POST'])
@@ -23,19 +26,26 @@ def clasificar():
 
         if not archivos or len(archivos) == 0:
             return jsonify({'error': 'No se recibieron archivos'}), 400
+        else:
+            logger.info(f"Recibidos {len(archivos)} archivos del cliente: {url_cliente}") 
 
         if not url_cliente:
             return jsonify({'error': 'URL del cliente no recibida'}), 400
 
         #Extraccion del texto
 
+        #Sanitizar nombres de archivos
+        nombre_archivo = secure_filename(archivo.filename)
+
         documentos = {}     
         for archivo in archivos:
             try:
                 texto_extraido = clasificar_archivo(archivo)
+                if not archivo_permitido(archivo.filename, archivo.mimetype):
+                    logger.warning(f"Archivo no permitido o con tipo inválido: {archivo.filename}")
                 if not texto_extraido or len(texto_extraido.strip()) == 0:
                     raise ValueError("El archivo no contiene texto legible.")
-                documentos[archivo.filename] = texto_extraido
+                documentos[nombre_archivo] = texto_extraido
             except ValueError as ve:
                 logger.warning(f"⚠️ {archivo.filename}: {ve}")    
             except Exception as e:

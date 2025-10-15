@@ -4,7 +4,8 @@ import json
 import re
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-
+if not GEMINI_API_KEY:
+    raise EnvironmentError("No se encontró GEMINI_API_KEY en el entorno.")
 
 #Prompt que resume cada documento para alimentar el prompt final
 
@@ -191,7 +192,7 @@ CONTENIDO:
                 "max_output_tokens":8192
                 }
             },
-            timeout= 90
+            timeout= 300
         )
         response.raise_for_status()
     except requests.exceptions.Timeout:

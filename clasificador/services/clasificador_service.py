@@ -9,6 +9,20 @@ from clasificador.utils.conversor_texto import (
 from clasificador.prompts.generador_prompt import generar_prompt
 
 EXTENSIONES_SOPORTADAS = ['.pdf', '.jpg', '.jpeg', '.png', '.doc', '.docx', '.xls', '.xlsx']
+MIMES_SOPORTADAS = [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/msword',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'image/png',
+    'image/jpeg'
+]
+
+def archivo_permitido(filename: str, mimetype: str) -> bool:
+    """Valida extension y tipo MIME del archivo."""
+    ext = Path(filename).suffix.lower()
+    return ext in EXTENSIONES_SOPORTADAS and mimetype in MIMES_SOPORTADAS
 
 def clasificar_archivo(archivo) -> str:
     try:
