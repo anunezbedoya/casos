@@ -2,15 +2,18 @@ from flask import Blueprint, request, jsonify
 from clasificador.services.clasificador_service import clasificar_archivo
 from clasificador.prompts.generador_prompt import generar_prompt, generar_resumenes
 import traceback
+import logging
 import requests
 
 clasificador_bp = Blueprint('clasificador', __name__)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 @clasificador_bp.route('/', methods=['POST'])
 def clasificar():
 
     try:
-        # 🔹 Recibir múltiples archivos
+        #  Recibir múltiples archivos
         archivos = request.files.getlist('archivos')
         url_cliente = request.form.get('url') or (request.json.get('url') if request.is_json else None)
 
@@ -24,42 +27,85 @@ def clasificar():
         if not url_cliente:
             return jsonify({'error': 'URL del cliente no recibida'}), 400
 
+        #Extraccion del texto
+
         documentos = {}     
         for archivo in archivos:
             try:
                 texto_extraido = clasificar_archivo(archivo)
+                if not texto_extraido or len(texto_extraido.strip()) == 0:
+                    raise ValueError("El archivo no contiene texto legible.")
                 documentos[archivo.filename] = texto_extraido
+            except ValueError as ve:
+                logger.warning(f"⚠️ {archivo.filename}: {ve}")    
             except Exception as e:
-                print(f"⚠️ Error extrayendo texto de {archivo.filename}: {e}")
+                logger.error(f"❌ Error extrayendo texto de {archivo.filename}: {e}")
                 continue
         if not documentos:
             return jsonify({'error': 'No se pudo procesar ningún archivo válido'}),400
 
-        if len(documentos) == 1:
-            # Solo un archivo → análisis directo
-            nombre, texto = list(documentos.items())[0]
-            print(f"📄 Análisis directo para: {nombre}")
-            resultado_final = generar_prompt([{
-                "documento": nombre,
-                "resumen": texto,
-                "tipo_documento": "Desconocido",
-                "indicadores_clave": {}
-            }])
-        else:
-            # Varios archivos → flujo normal (resúmenes + análisis final)
-            resumenes = generar_resumenes(documentos)
-            resultado_final = generar_prompt(resumenes)
-        
-        if "error" in resultado_final:
-            return jsonify({
-                "error": "Ocurrió un problema con el modelo de IA",
-                "detalle": resultado_final["error"]
-            }),502
+        #Llamada a GEMINI (1 o mas archivos)
 
-        return jsonify(resultado_final),200
+        try:        
+
+            if len(documentos) == 1:
+                # Solo un archivo → análisis directo
+                nombre, texto = list(documentos.items())[0]
+                logger.info(f"📄 Análisis directo para: {nombre}")
+                resultado_final = generar_prompt([{
+                    "documento": nombre,
+                    "resumen": texto,
+                    "tipo_documento": "Desconocido",
+                    "indicadores_clave": {}
+                }])
+            else:
+                # Varios archivos → flujo normal (resúmenes + análisis final)
+                logger.info(f"📚 Analizando {len(documentos)} documentos del mismo proceso")
+                resumenes = generar_resumenes(documentos)
+                resultado_final = generar_prompt(resumenes)
+            
+        except requests.exceptions.RequestException as re:
+            logger.error(f"🌐 Error de red al llamar a la API de Gemini: {re}")
+            return jsonify({
+                "error": "Error de conexión con el modelo de IA",
+                "detalle": str(re)                
+            }), 503 # Servicio no disponible
+        
+        except Exception as e:
+            logger.error(f"❌ Error en la llamada al modelo Gemini: {e}")
+            return jsonify({
+                "error": "Error al generar la respuesta con Gemini",
+                "detalle": str(e)                
+            }), 502 #Bad Gateway (error del modelo)
+        
+        # Validacion y parseo de respuesta
+
+        if not resultado_final:
+            return jsonify({
+                "error": "Respuesta vacía del modelo de IA",
+            }), 502
+        
+        if isinstance(resultado_final,dict) and "error" in resultado_final:
+            #Error interno desde generador_prompt.py
+            logger.error(f"⚠️ Error en la respuesta del modelo: {resultado_final['error']}")
+            return jsonify({
+                "error": "Ocurrió un problema al interpretar la respuesta de modelo",
+                "detalle": resultado_final["error"]
+            }), 502
+        
+        #Respuesta exitosa
+
+        logger.info("✅ Proceso completado exitosamente")
+        return jsonify (resultado_final), 200
     
+    except MemoryError:
+        logger.critical("💥 Error de memoria: el archivo o el texto son demasiado grandes.")
+        return jsonify({
+            "error": "El servidor no tiene suficiente memoria para procesar este archivo."
+        }), 413 #Request Entity Too Large
+        
     except Exception as e:
-        print("❌ ERROR INTERNO DEL SERVIDOR ❌")
+        logger.critical("❌ ERROR INTERNO DEL SERVIDOR ❌")
         traceback.print_exc()
 
         return jsonify({

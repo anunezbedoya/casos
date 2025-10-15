@@ -191,6 +191,7 @@ CONTENIDO:
             "max_output_tokens":8192
             }
         },
+        timeout= 90
     )
 
     if response.status_code != 200:
