@@ -179,26 +179,42 @@ Cada documento está delimitado así:
 CONTENIDO:
 {documentos_texto}
 """
-
+    try:
     # ✅ Aquí ya no retornamos, sino que llamamos al endpoint
-    response = requests.post(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-        params={"key": GEMINI_API_KEY},
-        json={
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig":{
-            "temperature":0.2,       # Controla la “creatividad” (0 = literal, 1 = más libre)
-            "max_output_tokens":8192
-            }
-        },
-        timeout= 90
-    )
+        response = requests.post(
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+            params={"key": GEMINI_API_KEY},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig":{
+                "temperature":0.2,       # Controla la “creatividad” (0 = literal, 1 = más libre)
+                "max_output_tokens":8192
+                }
+            },
+            timeout= 90
+        )
+        response.raise_for_status()
+    except requests.exceptions.Timeout:
+        return {"error": "Tiempo de espera agotado al comunicarse con la API de Gemini"}
+    except requests.exceptions.RequestException as e:
+        return {"error": f"Error en la conexión con Gemini: {str(e)}"}
 
     if response.status_code != 200:
         return {"error": response.text}
-
-    result = response.json()
-    text_result = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
+    try:
+        result = response.json()
+        text_result = (
+            result.get("candidates", [{}])[0]
+            .get("content", {})
+            .get("parts", [{}])[0]
+            .get("text", "")
+        )    
+        if not text_result.strip():
+            raise ValueError("Respuesta vacía del modelo de IA.")
+    except ValueError as ve:
+        return {"error":str(ve)}
+    except Exception as e:
+        return{"error": f"No se pudo interpretar la respuesta de Gemini: {str(e)}"}    
 
     # Limpieza del texto antes de parsear
     text_result = re.sub(r"```json|```", "", str(text_result)).strip()
