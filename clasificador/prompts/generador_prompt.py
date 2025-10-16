@@ -103,28 +103,20 @@ def procesar_documento(nombre: str, texto: str):
     if len(texto) > MAX_TOKENS_INPUT:
         texto = texto[:MAX_TOKENS_INPUT]
 
-    # 🧠 Intentar obtener resumen cacheado
-    resumen_cacheado = obtener_cache(nombre, texto)
-    if resumen_cacheado:
-        return resumen_cacheado
-
-    # 🏗️ Construir el prompt
     prompt = resumen_parcial_prompt(nombre, texto)
 
+    response = requests.post(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        params={"key": GEMINI_API_KEY},
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig":{
+            "temperature":0.2,       # Controla la “creatividad” (0 = literal, 1 = más libre)
+            "max_output_tokens":2048
+            }
+        },
+    )
     try:
-        response = requests.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-            params={"key": GEMINI_API_KEY},
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig":{
-                "temperature":0.2,       # Controla la “creatividad” (0 = literal, 1 = más libre)
-                "max_output_tokens":2048
-                }
-            },
-            timeout=100
-        )
-        response.raise_for_status()
         result = response.json()
 
         text_result = result.get(("candidates", [{}])[0]
@@ -133,22 +125,10 @@ def procesar_documento(nombre: str, texto: str):
             .get("text", "")
         )
         text_result = re.sub(r"```json|```", "", text_result).strip()
-
-        parsed_result = json.loads(text_result)
-
-        # 💾 Guardar en cache el resumen exitoso
-        guardar_cache(nombre, texto, parsed_result)
-
-        return parsed_result  
-
-    except requests.exceptions.Timeout:
-        return {"documento": nombre, "error": "Tiempo de espera agotado al comunicarse con Gemini"}
-    except requests.exceptions.RequestException as e:
-        return {"documento": nombre, "error": f"Error en la conexión con Gemini: {str(e)}"}
-    except json.JSONDecodeError:
-        return {"documento": nombre, "error": "Respuesta no válida de Gemini (JSON inválido)."}
+        return json.loads(text_result)
     except Exception as e:
-        return {"documento": nombre, "error": f"Error inesperado procesando {nombre}: {e}"}
+        print(f"⚠️ Error procesando {nombre}: {e}")
+        return {"documento": nombre, "error": "No se pudo generar resumen"}
     
 def generar_resumenes(documentos: dict):
     """
