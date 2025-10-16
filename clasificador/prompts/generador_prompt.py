@@ -19,7 +19,7 @@ sin perder la información jurídica esencial.
 
 ENTRADA:
 <documento nombre="{nombre_doc}">
-{texto[:20000]}  # límite seguro para Gemini (~15-20k tokens)
+{texto[:80000]}  # límite seguro para Gemini (~15-20k tokens)
 </documento>
 
 Tu salida debe ser un JSON con esta estructura exacta:
