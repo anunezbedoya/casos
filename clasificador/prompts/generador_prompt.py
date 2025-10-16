@@ -5,7 +5,7 @@ import re
 import logging
 import hashlib
 
-MAX_TOKENS_INPUT = 80000 # ≈ 60 páginas de texto plano (~320k caracteres)
+MAX_TOKENS_INPUT = 200000 # ≈ 60 páginas de texto plano (~320k caracteres)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
@@ -62,7 +62,12 @@ def resumen_parcial_prompt(nombre_doc: str, texto: str) -> str:
     # 🔹 Limpieza básica y limitación de longitud
 
     if len(texto) > MAX_TOKENS_INPUT:
-        texto = texto[:MAX_TOKENS_INPUT]
+        # corta en el último punto antes del límite
+        corte = texto[:MAX_TOKENS_INPUT].rfind('.')
+        if corte == -1:
+            corte = MAX_TOKENS_INPUT
+        texto = texto[:corte + 1]
+
 
     return f"""
 Eres un asistente jurídico colombiano. Resume brevemente el siguiente documento judicial
@@ -100,8 +105,14 @@ def procesar_documento(nombre: str, texto: str):
     #Limpieza del texto
 
     texto = re.sub(r'\s+', ' ', texto).strip()
+    
     if len(texto) > MAX_TOKENS_INPUT:
-        texto = texto[:MAX_TOKENS_INPUT]
+        # corta en el último punto antes del límite
+        corte = texto[:MAX_TOKENS_INPUT].rfind('.')
+        if corte == -1:
+            corte = MAX_TOKENS_INPUT
+        texto = texto[:corte + 1]
+
 
     # 🧠 Intentar obtener resumen cacheado
     resumen_cacheado = obtener_cache(nombre, texto)
