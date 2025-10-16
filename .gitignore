@@ -1,1 +1,6 @@
-.env
+# Archivos y carpetas de entorno
+env/
+venv/
+__pycache__/
+*.pyc
+
