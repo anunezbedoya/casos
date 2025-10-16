@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 #!/home/usuario/microservicios/casos-main/env/bin/python3
+=======
+#!/home/angie/microservicios/env/bin/python3
+>>>>>>> 587f2156 (Version Estable)
 # -*- coding: utf-8 -*-
 import re
 import sys

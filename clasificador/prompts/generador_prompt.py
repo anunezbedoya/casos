@@ -2,72 +2,16 @@ import requests
 import os
 import json
 import re
-import logging
-import hashlib
-
-MAX_TOKENS_INPUT = 200000 # ≈ 60 páginas de texto plano (~320k caracteres)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
     raise EnvironmentError("No se encontró GEMINI_API_KEY en el entorno.")
-
-# 🧠 FUNCIONES DE CACHE TEMPORAL
-
-def generar_cache_key(nombre_doc: str, texto: str) -> str:
-
-    """
-    Genera una clave hash única para un documento,
-    basada en su nombre y parte del contenido.
-    """
-    contenido = (nombre_doc + texto[:5000]).encode('utf-8', errors='ignore')
-    return hashlib.md5(contenido).hexdigest()
-
-def obtener_cache(nombre_doc: str, texto: str):
-
-    """Intenta recuperar un resumen cacheado desde /tmp/"""
-    cache_key = generar_cache_key(nombre_doc, texto)
-    path = f"/tmp/{cache_key}.json"
-
-    if os.path.exists(path):
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-                logging.info(f"♻️ Usando resumen cacheado para: {nombre_doc}")
-                return data
-        except Exception as e:
-            logging.warning(f"⚠️ Error leyendo cache de {nombre_doc}: {e}")
-    return None
-
-def guardar_cache(nombre_doc: str, texto: str, data: dict):
-
-    """Guarda el resumen en cache temporal."""
-    try:
-        cache_key = generar_cache_key(nombre_doc, texto)
-        path = f"/tmp/{cache_key}.json"
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-        logging.info(f"✅ Cache guardado para: {nombre_doc}")
-    except Exception as e:
-        logging.warning(f"⚠️ No se pudo guardar cache de {nombre_doc}: {e}")
-
-
 
 #Prompt que resume cada documento para alimentar el prompt final
 
 def resumen_parcial_prompt(nombre_doc: str, texto: str) -> str:
     if not GEMINI_API_KEY:
         return {"error": "API key no configurada"}
-    texto = re.sub(r'\s+', ' ', texto).strip() # elimina espacios y saltos redundantes
-
-    # 🔹 Limpieza básica y limitación de longitud
-
-    if len(texto) > MAX_TOKENS_INPUT:
-        # corta en el último punto antes del límite
-        corte = texto[:MAX_TOKENS_INPUT].rfind('.')
-        if corte == -1:
-            corte = MAX_TOKENS_INPUT
-        texto = texto[:corte + 1]
-
 
     return f"""
 Eres un asistente jurídico colombiano. Resume brevemente el siguiente documento judicial
@@ -101,66 +45,27 @@ Reglas:
 """
 
 def procesar_documento(nombre: str, texto: str):
-
-    #Limpieza del texto
-
-    texto = re.sub(r'\s+', ' ', texto).strip()
-    
-    if len(texto) > MAX_TOKENS_INPUT:
-        # corta en el último punto antes del límite
-        corte = texto[:MAX_TOKENS_INPUT].rfind('.')
-        if corte == -1:
-            corte = MAX_TOKENS_INPUT
-        texto = texto[:corte + 1]
-
-
-    # 🧠 Intentar obtener resumen cacheado
-    resumen_cacheado = obtener_cache(nombre, texto)
-    if resumen_cacheado:
-        return resumen_cacheado
-
     prompt = resumen_parcial_prompt(nombre, texto)
 
-    try: 
-
-        response = requests.post(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
-            params={"key": GEMINI_API_KEY},
-            json={
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig":{
-                "temperature":0.2,       # Controla la “creatividad” (0 = literal, 1 = más libre)
-                "max_output_tokens":2048
-                }
-            },
-            timeout=100
-        )
-        response.raise_for_status()
+    response = requests.post(
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+        params={"key": GEMINI_API_KEY},
+        json={
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig":{
+            "temperature":0.2,       # Controla la “creatividad” (0 = literal, 1 = más libre)
+            "max_output_tokens":2048
+            }
+        },
+    )
+    try:
         result = response.json()
-
-        text_result = result.get(("candidates", [{}])[0]
-            .get("content", {})
-            .get("parts", [{}])[0]
-            .get("text", "")
-        )
+        text_result = result.get("candidates", [{}])[0].get("content", {}).get("parts", [{}])[0].get("text", "")
         text_result = re.sub(r"```json|```", "", text_result).strip()
-        
-        parsed_result = json.loads(text_result)
-
-        # 💾 Guardar en cache el resumen exitoso
-        guardar_cache(nombre, texto, parsed_result)
-        
-        return parsed_result
-    
-    except requests.exceptions.Timeout:
-        return {"documento": nombre, "error": "Tiempo de espera agotado al comunicarse con Gemini"}
-    except requests.exceptions.RequestException as e:
-        return {"documento": nombre, "error": f"Error en la conexión con Gemini: {str(e)}"}
-    except json.JSONDecodeError:
-        return {"documento": nombre, "error": "Respuesta no válida de Gemini (JSON inválido)."}
+        return json.loads(text_result)
     except Exception as e:
-        return {"documento": nombre, "error": f"Error inesperado procesando {nombre}: {e}"}
-
+        print(f"⚠️ Error procesando {nombre}: {e}")
+        return {"documento": nombre, "error": "No se pudo generar resumen"}
     
 def generar_resumenes(documentos: dict):
     """
@@ -178,17 +83,13 @@ def generar_resumenes(documentos: dict):
 def generar_prompt(resumenes_json):
     if not GEMINI_API_KEY:
         return {"error": "API key no configurada"}
-    
-    def limpiar_y_limitar_texto(texto):
-        texto = re.sub(r'\s+', ' ', texto).strip()
-        return texto[:MAX_TOKENS_INPUT] if len(texto) > MAX_TOKENS_INPUT else texto
 
     # 🔹 Convertir los resúmenes a formato legible con delimitadores semánticos
     documentos_texto = ""
     for r in resumenes_json:
         nombre = r.get("documento", "Sin nombre")
         tipo = r.get("tipo_documento", "Desconocido")
-        resumen = limpiar_y_limitar_texto(r.get("resumen", ""))
+        resumen = r.get("resumen", "")
         ind = r.get("indicadores_clave", {})
 
         documentos_texto += f"""
@@ -321,8 +222,6 @@ CONTENIDO:
     text_result = re.sub(r'(:\s*")([^"]*?)"([^"]*?")', r'\1\2\\\"\3', text_result)
 
     try:
-        text_result = re.sub(r'\s+', ' ', text_result).strip() # normaliza espacios del JSON
-
         json_result = json.loads(text_result)
 
         # Si "contenido" es lista de diccionarios → unificar
