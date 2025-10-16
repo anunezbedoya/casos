@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from clasificador.services.clasificador_service import clasificar_archivo, archivo_permitido
 from clasificador.prompts.generador_prompt import generar_prompt, generar_resumenes
 from werkzeug.utils import secure_filename
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import traceback
 import logging
 import requests
@@ -35,27 +36,38 @@ def clasificar():
         #Extraccion del texto
 
         documentos = {}     
-        for archivo in archivos:
+        logger.info(f"🧩 Iniciando extracción de texto para {len(archivos)} archivos")
 
-            #Sanitizar nombres de archivos
-            nombre_archivo = secure_filename(archivo.filename)    
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            # Creamos un futuro por archivo
+            futuros = {executor.submit(clasificar_archivo, archivo): archivo for archivo in archivos}
 
-            try:
-                texto_extraido = clasificar_archivo(archivo)
-                if not archivo_permitido(archivo.filename, archivo.mimetype):
-                    logger.warning(f"Archivo no permitido o con tipo inválido: {archivo.filename}")
-                if not texto_extraido or len(texto_extraido.strip()) == 0:
-                    raise ValueError("El archivo no contiene texto legible.")
-                documentos[nombre_archivo] = texto_extraido
-            except ValueError as ve:
-                logger.warning(f"⚠️ {archivo.filename}: {ve}")    
-            except Exception as e:
-                logger.error(f"❌ Error extrayendo texto de {archivo.filename}: {e}")
-                continue
+            for futuro in as_completed(futuros):
+                archivo = futuros[futuro]
+                nombre_archivo = secure_filename(archivo.filename)
+
+                try:
+                    # Validar tipo y extensión ANTES de usar el resultado
+                    if not archivo_permitido(archivo.filename, archivo.mimetype):
+                        logger.warning(f"Archivo no permitido o con tipo inválido: {archivo.filename}")
+                        continue
+
+                    texto_extraido = futuro.result(timeout=60)  # tiempo máximo por archivo
+
+                    if not texto_extraido or len(texto_extraido.strip()) == 0:
+                        raise ValueError("El archivo no contiene texto legible.")
+
+                    documentos[nombre_archivo] = texto_extraido
+                    logger.info(f"✅ Texto extraído correctamente: {nombre_archivo}")
+
+                except ValueError as ve:
+                    logger.warning(f"⚠️ {nombre_archivo}: {ve}")
+                except Exception as e:
+                    logger.error(f"❌ Error procesando {nombre_archivo}: {e}")
+
         if not documentos:
-            return jsonify({'error': 'No se pudo procesar ningún archivo válido'}),400
-
-        #Llamada a GEMINI (1 o mas archivos)
+            return jsonify({'error': 'No se pudo procesar ningún archivo válido'}), 400
+                #Llamada a GEMINI (1 o mas archivos)
 
         try:        
 
