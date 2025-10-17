@@ -77,7 +77,7 @@ def generar_resumenes(documentos: dict):
     resultados = []
     logger = logging.getLogger(__name__)
 
-    with ThreadPoolExecutor(max_workers=4) as executor:
+    with ThreadPoolExecutor(max_workers=min(4, os.cpu_count() * 2)) as executor:
         futures = {
             executor.submit(procesar_documento, nombre, texto): nombre
             for nombre, texto in documentos.items()

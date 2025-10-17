@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import traceback
 import logging
 import requests
+import os
 
 clasificador_bp = Blueprint('clasificador', __name__)
 logging.basicConfig(
@@ -56,7 +57,7 @@ def clasificar():
         documentos ={}
 
         # 🧠 Ejecutar extracción en paralelo
-        with ThreadPoolExecutor(max_workers=4) as executor:
+        with ThreadPoolExecutor(max_workers= min(4, os.cpu_count() * 2)) as executor:
             futures = {executor.submit(procesar_archivo, archivo): archivo for archivo in archivos}
             for future in as_completed(futures):
                 nombre, texto = future.result()
