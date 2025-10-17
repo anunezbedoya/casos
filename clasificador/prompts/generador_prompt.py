@@ -1,7 +1,9 @@
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import requests
 import os
 import json
 import re
+import logging
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 if not GEMINI_API_KEY:
@@ -70,12 +72,26 @@ def procesar_documento(nombre: str, texto: str):
 def generar_resumenes(documentos: dict):
     """
     documentos: dict con {nombre_archivo: texto_extraido}
+    Procesa los documentos en paralelo para obtener sus resúmenes parciales.
     """
     resultados = []
-    for nombre, texto in documentos.items():
-        print(f"🧾 Resumiendo documento: {nombre}")
-        resumen = procesar_documento(nombre, texto)
-        resultados.append(resumen)
+    logger = logging.getLogger(__name__)
+
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {
+            executor.submit(procesar_documento, nombre, texto): nombre
+            for nombre, texto in documentos.items()
+        }
+
+        for future in as_completed(futures):
+            nombre = futures[future]
+            try:
+                resumen = future.result()
+                resultados.append(resumen)
+                logger.info(f"✅ Resumen generado para {nombre}")
+            except Exception as e:
+                logger.error(f"❌ Error generando resumen de {nombre}: {e}")
+
     return resultados
 
 #Definimos el prompt final (respuesta completa)

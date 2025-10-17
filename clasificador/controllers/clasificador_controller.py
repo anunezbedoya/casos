@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from clasificador.services.clasificador_service import clasificar_archivo, archivo_permitido
 from clasificador.prompts.generador_prompt import generar_prompt, generar_resumenes
 from werkzeug.utils import secure_filename
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import traceback
 import logging
 import requests
@@ -34,24 +35,35 @@ def clasificar():
 
         #Extraccion del texto
 
-        documentos = {}     
-        for archivo in archivos:
-
-            #Sanitizar nombres de archivos
-            nombre_archivo = secure_filename(archivo.filename)    
-
+        def procesar_archivo(archivo):
+            
+            nombre_archivo = secure_filename(archivo.filename)
             try:
                 texto_extraido = clasificar_archivo(archivo)
                 if not archivo_permitido(archivo.filename, archivo.mimetype):
                     logger.warning(f"Archivo no permitido o con tipo inválido: {archivo.filename}")
                 if not texto_extraido or len(texto_extraido.strip()) == 0:
                     raise ValueError("El archivo no contiene texto legible.")
-                documentos[nombre_archivo] = texto_extraido
+                logger.info(f"✅ Texto extraído correctamente de {nombre_archivo}")
+                return nombre_archivo, texto_extraido
+
             except ValueError as ve:
                 logger.warning(f"⚠️ {archivo.filename}: {ve}")    
             except Exception as e:
                 logger.error(f"❌ Error extrayendo texto de {archivo.filename}: {e}")
-                continue
+            return None, None
+        
+        documentos ={}
+
+        # 🧠 Ejecutar extracción en paralelo
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(procesar_archivo, archivo): archivo for archivo in archivos}
+            for future in as_completed(futures):
+                nombre, texto = future.result()
+                if nombre and texto:
+                    documentos[nombre] = texto
+
+
         if not documentos:
             return jsonify({'error': 'No se pudo procesar ningún archivo válido'}),400
 
