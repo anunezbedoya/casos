@@ -40,11 +40,26 @@ def clasificar():
             
             nombre_archivo = secure_filename(archivo.filename)
             try:
-                texto_extraido = clasificar_archivo(archivo)
+                # Ejecuta el clasificador de servicio
+                resultado = clasificar_archivo(archivo)
+
+                #Validar estructura del resultado
+                if not isinstance(resultado, dict):
+                    raise ValueError("La funcion clasificar_archivo no devolvio un diccionario válido")
+                
+                #Validar archivo permitido
                 if not archivo_permitido(archivo.filename, archivo.mimetype):
                     logger.warning(f"Archivo no permitido o con tipo inválido: {archivo.filename}")
+                
+                if not resultado.get("exito"):
+                    logger.warning(f"⚠️ {nombre_archivo}: {resultado.get('mensaje', 'Sin mensaje')}")
+                    return None, None
+
+                texto_extraido = resultado.get("texto", "")
+
                 if not texto_extraido or len(texto_extraido.strip()) == 0:
-                    raise ValueError("El archivo no contiene texto legible.")
+                    logger.warning(f"⚠️ {nombre_archivo}: Texto vacío o ilegible.")
+
                 logger.info(f"✅ Texto extraído correctamente de {nombre_archivo}")
                 return nombre_archivo, texto_extraido
 

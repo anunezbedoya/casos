@@ -77,3 +77,25 @@ def extraer_texto_excel(file_bytes):
         return " ".join(contenido).replace("\n", " ").strip()
     except Exception as e:
         return f"Error leyendo Excel: {e}"
+
+def extraer_texto_auto(nombre_archivo: str, file_bytes: bytes) -> str:
+    """
+    Detecta el tipo de archivo y aplica el extractor adecuado.
+    """
+    nombre_archivo = nombre_archivo.lower()
+    if nombre_archivo.endswith(".pdf"):
+        texto = extraer_texto_pdf(file_bytes)
+        if len(texto.strip()) < 50: #fallback a OCR si poco texto
+            texto = extraer_texto_pdf_ocr(file_bytes)
+        return texto
+    
+    elif nombre_archivo.endswith((".jpg", ".jpeg", ".png")):
+        return extraer_texto_imagen(file_bytes)
+    
+    elif nombre_archivo.endswith(".docx"):
+        return extraer_texto_word(file_bytes)
+    
+    elif nombre_archivo.endswith((".xls", ".xlsx")):
+        return extraer_texto_excel(file_bytes)
+    
+    return "Formato no soportado o archivo vacio"
