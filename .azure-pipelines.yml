@@ -24,7 +24,7 @@ steps:
       echo "Validando rama..."
       echo "Build.SourceBranchName = '$(Build.SourceBranchName)'"
       echo "Build.SourceBranch = '$(Build.SourceBranch)'"
-      if [ "$(Build.SourceBranchName)" != "feature/22040_carga_mod_casos" ]; then
+      if [ "$(Build.SourceBranch)" != "feature/22040_carga_mod_casos" ]; then
         echo "❌ Solo la rama 'feature/22040_carga_mod_casos' puede sincronizarse con GitHub."
         exit 1
       fi
