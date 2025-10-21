@@ -4,7 +4,7 @@
 trigger:
   branches:
     include:
-      - feature/22040_carga_mod_casos  # Ejecuta solo para esta rama
+      - feature/22040_carga_mod_casos
 
 pool:
   vmImage: ubuntu-latest
@@ -18,6 +18,7 @@ variables:
 steps:
   - checkout: self
     clean: true
+    persistCredentials: true  # importante para no perder auth del repo Azure
 
   # 1️⃣ Validar rama
   - script: |
@@ -38,20 +39,15 @@ steps:
 
   # 3️⃣ Sincronizar con GitHub
   - script: |
-      echo "Preparando entorno local..."
-      git fetch origin feature/22040_carga_mod_casos
-      git checkout feature/22040_carga_mod_casos
-
       echo "Agregando remoto de GitHub..."
       git remote remove github || true
       git remote add github https://$(GITHUB_TOKEN_CASOS)@github.com/$(GITHUB_ORG)/$(GITHUB_REPO).git
 
-      echo "Verificando contenido local..."
-      git status
-      git log -1 --oneline
+      echo "Rama actual:"
+      git branch --show-current || echo "(detached HEAD)"
 
-      echo "Empujando cambios de 'feature/22040_carga_mod_casos' (Azure) hacia 'main' (GitHub)..."
-      git push github feature/22040_carga_mod_casos:main --force
+      echo "Empujando commit actual (HEAD) hacia rama main en GitHub..."
+      git push github HEAD:main --force
 
       echo "✅ Sincronización completada correctamente."
     env:
