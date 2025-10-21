@@ -22,6 +22,8 @@ steps:
   # 1️⃣ Validar que la rama sea dev
   - script: |
       echo "Validando rama..."
+      echo "Build.SourceBranchName = '$(Build.SourceBranchName)'"
+      echo "Build.SourceBranch = '$(Build.SourceBranch)'"
       if [ "$(Build.SourceBranchName)" != "feature/22040_carga_mod_casos" ]; then
         echo "❌ Solo la rama 'feature/22040_carga_mod_casos' puede sincronizarse con GitHub."
         exit 1
